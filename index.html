@@ -151,7 +151,8 @@ async function render() {
     const users = await Promise.race([getUsers(), timeout]);
 
     app.innerHTML = `
-      <h1>체중 <span>그래프</span></h1>
+      <h1>마웨그</h1>
+      <p style="font-size:13px;color:var(--muted);margin-top:2px;margin-bottom:4px">My Weight Graph</p>
       <p>사용자를 선택하세요</p>
       <div class="user-grid" id="userGrid"></div>
       <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;justify-content:center">
