@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0d1117">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="favicon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <title>업적 | 마웨그</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/borders.css">
+  <style>
+    .ach-score-card {
+      background: linear-gradient(135deg, rgba(0,229,170,.12), rgba(79,195,247,.08));
+      border: 1px solid rgba(0,229,170,.25);
+      border-radius: 14px; padding: 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      flex-wrap: wrap;
+    }
+    .ach-score-num {
+      font-size: 48px; font-weight: 900; line-height: 1;
+      background: linear-gradient(135deg, #00e5aa, #4fc3f7);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .ach-score-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .tier-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: 700;
+      border: 1px solid currentColor;
+    }
+    .ach-progress-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); margin-top: 8px; overflow:hidden; }
+    .ach-progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #00e5aa, #4fc3f7); transition: width .5s; }
+
+    /* 최근 달성 */
+    .recent-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+    .recent-scroll::-webkit-scrollbar { height: 4px; }
+    .recent-scroll::-webkit-scrollbar-track { background: transparent; }
+    .recent-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .recent-card {
+      flex-shrink: 0; width: 130px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px; text-align: center;
+    }
+    .recent-card.legendary { border-color: rgba(255,215,0,.4); background: rgba(255,215,0,.06); }
+    .recent-card .rc-icon { font-size: 28px; margin-bottom: 6px; }
+    .recent-card .rc-name { font-size: 11px; font-weight: 700; line-height: 1.3; }
+    .recent-card .rc-score { font-size: 10px; color: var(--teal); margin-top: 3px; }
+    .recent-card .rc-date { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    /* 레이아웃 */
+    .ach-layout { display: flex; gap: 16px; margin-top: 16px; }
+    .ach-sidebar {
+      width: 140px; flex-shrink: 0;
+    }
+    .ach-main { flex: 1; min-width: 0; }
+    @media (max-width: 767px) {
+      .ach-layout { flex-direction: column; }
+      .ach-sidebar { width: 100%; }
+    }
+
+    /* 카테고리 사이드바 */
+    .cat-list { display: flex; flex-direction: column; gap: 4px; }
+    @media (max-width: 767px) {
+      .cat-list { flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
+    }
+    .cat-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 12px; border-radius: 8px; font-size: 13px;
+      background: transparent; border: 1px solid transparent;
+      color: var(--muted); cursor: pointer; transition: all .15s;
+      white-space: nowrap; text-align: left; width: 100%;
+    }
+    .cat-btn:hover { background: var(--surface2); color: var(--text); }
+    .cat-btn.active { background: rgba(0,229,170,.1); border-color: rgba(0,229,170,.3); color: var(--teal); }
+    .cat-count { margin-left: auto; font-size: 10px; }
+    @media (max-width: 767px) {
+      .cat-btn { padding: 7px 10px; }
+      .cat-count { display: none; }
+    }
+
+    /* 업적 카드 그리드 */
+    .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+
+    .ach-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 12px;
+      position: relative; transition: all .2s;
+    }
+    .ach-card.earned {
+      background: rgba(0,229,170,.04); border-color: rgba(0,229,170,.2);
+    }
+    .ach-card.legendary.earned {
+      background: rgba(255,215,0,.06); border-color: rgba(255,215,0,.35);
+      box-shadow: 0 0 12px rgba(255,215,0,.1);
+    }
+    .ach-card.locked { opacity: .4; }
+    .ach-card .ac-icon { font-size: 26px; margin-bottom: 7px; }
+    .ach-card .ac-name { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+    .ach-card .ac-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+    .ach-card .ac-score {
+      position: absolute; top: 10px; right: 10px;
+      font-size: 11px; font-weight: 700; color: var(--teal);
+      background: rgba(0,229,170,.1); border-radius: 10px; padding: 2px 7px;
+    }
+    .ach-card.legendary .ac-score { color: #FFD700; background: rgba(255,215,0,.1); }
+    .ach-card .ac-date { font-size: 10px; color: var(--muted); margin-top: 6px; }
+    .legendary-badge {
+      display: inline-block; font-size: 9px; font-weight: 800;
+      background: linear-gradient(90deg,#FFD700,#FFA500); color: #0d1117;
+      border-radius: 4px; padding: 1px 5px; margin-bottom: 4px; letter-spacing:.04em;
+    }
+    .lock-icon { position: absolute; bottom: 10px; right: 10px; font-size: 14px; opacity:.5; }
+  </style>
+</head>
+<body>
+<header class="top-bar">
+  <a href="index.html?select=1" class="title" style="text-decoration:none;color:inherit">🏆 업적</a>
+  <nav class="side-nav" id="sideNav"></nav>
+  <div class="user-chip" id="userChip">
+    <span id="chipEmoji">⚖️</span><span id="chipName">-</span>
+  </div>
+</header>
+
+<div class="page">
+  <div id="content">
+    <div class="loading"><div class="spinner"></div> 업적 계산 중...</div>
+  </div>
+</div>
+
+<nav class="bottom-nav" id="bottomNav"></nav>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { getUser, getWeights, getEarnedAchievements, saveEarnedAchievement, updateUser, getTierSettings } from './js/db.js';
+import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, calculateEarnedIds, calcTotalScore, getTierForScore, DEFAULT_TIERS } from './js/achievements.js';
+
+const uid = new URLSearchParams(location.search).get('user') || localStorage.getItem('uid');
+if (!uid) location.href = 'index.html';
+
+let currentCat = 'all';
+
+function buildNav() {
+  const links = [
+    { href:`dashboard.html?user=${uid}`,    icon:'📊', label:'그래프',   id:'dashboard' },
+    { href:`input.html?user=${uid}`,         icon:'✏️',  label:'체중 입력', id:'input' },
+    { href:`achievements.html?user=${uid}`,  icon:'🏆', label:'업적',     id:'achievements' },
+  ];
+  [document.getElementById('bottomNav'), document.getElementById('sideNav')].forEach((nav, ni) => {
+    links.forEach(l => {
+      const a = document.createElement('a');
+      a.href = l.href; a.className = l.id === 'achievements' ? 'active' : '';
+      a.innerHTML = ni === 0 ? `<span class="icon">${l.icon}</span>${l.label}` : `${l.icon} ${l.label}`;
+      nav.appendChild(a);
+    });
+  });
+}
+
+function fmtDate(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+
+async function render() {
+  buildNav();
+  const [user, records, storedRaw, tierData] = await Promise.all([
+    getUser(uid), getWeights(uid), getEarnedAchievements(uid), getTierSettings()
+  ]);
+  if (!user) { location.href = 'index.html'; return; }
+
+  document.getElementById('chipName').textContent  = user.name;
+  document.getElementById('chipEmoji').textContent = user.emoji || '⚖️';
+  document.title = `${user.name} 업적 | 마웨그`;
+
+  const tiers = tierData?.tiers || DEFAULT_TIERS;
+
+  // 이미 Firebase에 있는 업적 (invalidated 포함)
+  const storedMap = Object.fromEntries(storedRaw.map(a => [a.id, a]));
+  const alreadyInDb = new Set(storedRaw.map(a => a.id));
+
+  // 현재 기록 기반으로 달성해야 할 업적 계산
+  const shouldEarn = calculateEarnedIds(records, user);
+
+  // 새로 달성된 업적만 Firebase에 저장 (DB에 없는 것만)
+  const newlyEarned = [...shouldEarn].filter(id => !alreadyInDb.has(id));
+  await Promise.all(newlyEarned.map(id => {
+    const ach = ACHIEVEMENTS.find(a => a.id === id);
+    return saveEarnedAchievement(uid, id, { score: ach?.score || 0, invalidated: false });
+  }));
+
+  // 유효한 업적 ID 목록 (invalidated 제외)
+  const validEarned = new Set([
+    ...storedRaw.filter(a => !a.invalidated && shouldEarn.has(a.id)).map(a => a.id),
+    ...newlyEarned
+  ]);
+
+  const totalScore = calcTotalScore(validEarned);
+  const tier = getTierForScore(totalScore, tiers);
+  const nextTier = [...tiers].sort((a,b)=>a.minScore-b.minScore).find(t=>t.minScore>totalScore);
+
+  // totalScore 업데이트
+  if (user.totalScore !== totalScore) await updateUser(uid, { totalScore });
+
+  // 최근 달성 업적 5개
+  const earnedWithDate = [...validEarned].map(id => {
+    const stored = storedMap[id];
+    const ach = ACHIEVEMENTS.find(a => a.id === id);
+    return { ...ach, earnedAt: stored?.earnedAt };
+  }).filter(Boolean).sort((a,b) => {
+    const da = a.earnedAt?.toDate ? a.earnedAt.toDate() : new Date(0);
+    const db_ = b.earnedAt?.toDate ? b.earnedAt.toDate() : new Date(0);
+    return db_ - da;
+  });
+  const recentFive = earnedWithDate.slice(0, 5);
+
+  const progress = nextTier
+    ? Math.round((totalScore - tier.minScore) / (nextTier.minScore - tier.minScore) * 100)
+    : 100;
+
+  document.getElementById('content').innerHTML = `
+    <!-- 점수 카드 -->
+    <div class="ach-score-card">
+      <div>
+        <div class="ach-score-label">업적 점수</div>
+        <div class="ach-score-num">${totalScore}</div>
+        <div style="margin-top:6px">
+          <span class="tier-badge" style="color:${tier.color};border-color:${tier.color}30;background:${tier.color}18">
+            ${tier.name}
+          </span>
+        </div>
+        ${nextTier ? `
+          <div class="ach-progress-bar" style="width:200px;max-width:100%;margin-top:10px">
+            <div class="ach-progress-fill" style="width:${progress}%"></div>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">${nextTier.name}까지 ${nextTier.minScore - totalScore}점</div>
+        ` : '<div style="font-size:11px;color:var(--teal);margin-top:6px">최고 티어 달성! 🎉</div>'}
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">달성한 업적</div>
+        <div style="font-size:28px;font-weight:900">${validEarned.size}<span style="font-size:14px;color:var(--muted)">/${ACHIEVEMENTS.length}</span></div>
+      </div>
+    </div>
+
+    <!-- 최근 달성 -->
+    ${recentFive.length ? `
+    <div class="mt-12">
+      <div class="section-title">최근 달성 업적</div>
+      <div class="recent-scroll">
+        ${recentFive.map(a => `
+          <div class="recent-card ${a.legendary?'legendary':''}">
+            <div class="rc-icon">${a.icon}</div>
+            <div class="rc-name">${a.name}</div>
+            <div class="rc-score">+${a.score}점</div>
+            <div class="rc-date">${fmtDate(a.earnedAt)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    ` : ''}
+
+    <!-- 카테고리 + 업적 목록 -->
+    <div class="ach-layout">
+      <div class="ach-sidebar">
+        <div class="card" style="padding:8px">
+          <div class="cat-list" id="catList"></div>
+        </div>
+      </div>
+      <div class="ach-main" id="achMain"></div>
+    </div>`;
+
+  // 카테고리 버튼
+  buildCatList(validEarned);
+  renderAchievements(validEarned, storedMap, currentCat);
+}
+
+function buildCatList(validEarned) {
+  const cats = [{ id:'all', label:'전체', icon:'🎖️' }, ...ACHIEVEMENT_CATEGORIES];
+  document.getElementById('catList').innerHTML = cats.map(c => {
+    const achs = c.id === 'all' ? ACHIEVEMENTS : ACHIEVEMENTS.filter(a => a.cat === c.id);
+    const earned = achs.filter(a => validEarned.has(a.id)).length;
+    return `<button class="cat-btn ${currentCat===c.id?'active':''}" onclick="setCat('${c.id}')">
+      <span>${c.icon}</span><span>${c.label}</span>
+      <span class="cat-count">${earned}/${achs.length}</span>
+    </button>`;
+  }).join('');
+}
+
+window.setCat = cat => {
+  currentCat = cat;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.onclick?.toString().includes(`'${cat}'`)));
+  document.querySelectorAll('.cat-btn').forEach(b => {
+    b.classList.remove('active');
+    if (b.getAttribute('onclick') === `setCat('${cat}')`) b.classList.add('active');
+  });
+  // re-render the list
+  const script = document.querySelector('script[type=module]');
+  // just re-render achievements section
+  const el = document.getElementById('achMain');
+  if (el) renderAchievementsInto(el, _validEarned, _storedMap, cat);
+};
+
+let _validEarned, _storedMap;
+
+function renderAchievements(validEarned, storedMap, cat) {
+  _validEarned = validEarned; _storedMap = storedMap;
+  const el = document.getElementById('achMain');
+  if (el) renderAchievementsInto(el, validEarned, storedMap, cat);
+}
+
+function renderAchievementsInto(el, validEarned, storedMap, cat) {
+  const list = cat === 'all' ? ACHIEVEMENTS : ACHIEVEMENTS.filter(a => a.cat === cat);
+  const earned = list.filter(a => validEarned.has(a.id)).sort((a,b) => {
+    const da = storedMap[a.id]?.earnedAt?.toDate ? storedMap[a.id].earnedAt.toDate() : new Date(0);
+    const db_ = storedMap[b.id]?.earnedAt?.toDate ? storedMap[b.id].earnedAt.toDate() : new Date(0);
+    return db_ - da;
+  });
+  const notEarned = list.filter(a => !validEarned.has(a.id));
+  const sorted = [...earned, ...notEarned];
+
+  el.innerHTML = `<div class="ach-grid">${sorted.map(a => {
+    const isEarned = validEarned.has(a.id);
+    const stored = storedMap[a.id];
+    return `<div class="ach-card ${isEarned?'earned':''} ${a.legendary?'legendary':''} ${isEarned?'':'locked'}">
+      ${a.legendary ? '<div class="legendary-badge">⭐ 위업</div>' : ''}
+      <div class="ac-score">+${a.score}</div>
+      <div class="ac-icon">${a.icon}</div>
+      <div class="ac-name">${a.name}</div>
+      <div class="ac-desc">${a.desc}</div>
+      ${isEarned && stored?.earnedAt ? `<div class="ac-date">${fmtDate(stored.earnedAt)} 달성</div>` : ''}
+      ${!isEarned ? '<div class="lock-icon">🔒</div>' : ''}
+    </div>`;
+  }).join('')}</div>`;
+
+  // update cat list active state
+  document.querySelectorAll('.cat-btn').forEach(b => {
+    b.classList.remove('active');
+    if (b.getAttribute('onclick') === `setCat('${cat}')`) b.classList.add('active');
+  });
+}
+
+function showToast(msg, type='ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast show ${type}`;
+  setTimeout(() => t.className = 'toast', 2500);
+}
+
+render().catch(e => {
+  document.getElementById('content').innerHTML =
+    `<div class="card"><p class="text-muted">오류: ${e.message}</p></div>`;
+});
+</script>
+<script src="register-sw.js"></script>
+</body>
+</html>

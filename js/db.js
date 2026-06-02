@@ -93,6 +93,29 @@ export async function deleteWeight(userId, dateStr) {
   await deleteDoc(doc(db, 'weights', userId, 'records', dateStr));
 }
 
+// ── 업적 ──────────────────────────────────────────────────────────────
+export async function getEarnedAchievements(userId) {
+  const snap = await getDocs(collection(db, 'achievements', userId, 'earned'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function saveEarnedAchievement(userId, achievementId, data) {
+  await setDoc(doc(db, 'achievements', userId, 'earned', achievementId),
+    { ...data, earnedAt: data.earnedAt || serverTimestamp() }, { merge: true });
+}
+export async function invalidateAchievement(userId, achievementId, invalidated) {
+  await setDoc(doc(db, 'achievements', userId, 'earned', achievementId),
+    { invalidated }, { merge: true });
+}
+
+// ── 티어 설정 ─────────────────────────────────────────────────────────
+export async function getTierSettings() {
+  const snap = await getDoc(doc(db, 'settings', 'tiers'));
+  return snap.exists() ? snap.data() : null;
+}
+export async function saveTierSettings(data) {
+  await setDoc(doc(db, 'settings', 'tiers'), data, { merge: true });
+}
+
 // ── 앱 설정 ──────────────────────────────────────────────────────────
 export const DEFAULT_SETTINGS = {
   show7dayMA:true, showWeeklyBar:true, showPrediction:false,

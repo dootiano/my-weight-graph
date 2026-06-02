@@ -9,6 +9,8 @@
   <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
   <title>체중 입력 | 마웨그</title>
   <link rel="stylesheet" href="css/style.css">
+  <!-- SheetJS (Excel 파싱) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     .rec-table{width:100%;border-collapse:collapse;font-size:13px;}
     .rec-table th{text-align:left;padding:6px 8px;color:var(--muted);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;}
@@ -66,7 +68,7 @@
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { getUser, getWeights, setWeight, deleteWeight, parseWeight, toDateStr } from './js/db.js';
+import { getUser, getWeights, setWeight, deleteWeight, parseWeight, toDateStr, batchSetWeights } from './js/db.js';
 const uid = new URLSearchParams(location.search).get('user') || localStorage.getItem('uid');
 if (!uid) location.href='index.html';
 window.doLogout = () => { localStorage.removeItem('uid'); location.href='index.html'; };
@@ -76,9 +78,9 @@ let existingMap={}, allRecords=[], user=null;
 
 function buildNav() {
   const links=[
-    {href:`dashboard.html?user=${uid}`,icon:'📊',label:'그래프',id:'dashboard'},
-    {href:`input.html?user=${uid}`,    icon:'✏️', label:'입력',  id:'input'},
-    {href:`import.html?user=${uid}`,   icon:'📥', label:'가져오기',id:'import'},
+    {href:`dashboard.html?user=${uid}`,   icon:'📊', label:'그래프',   id:'dashboard'},
+    {href:`input.html?user=${uid}`,        icon:'✏️',  label:'체중 입력', id:'input'},
+    {href:`achievements.html?user=${uid}`, icon:'🏆', label:'업적',     id:'achievements'},
   ];
   [document.getElementById('bottomNav'),document.getElementById('sideNav')].forEach((nav,ni)=>{
     links.forEach(l=>{
@@ -169,7 +171,50 @@ async function render() {
       </div>
     </div>
 
-    <a href="dashboard.html?user=${uid}" class="btn btn-primary btn-full mt-12">📊 그래프 보기</a>`;
+    <a href="dashboard.html?user=${uid}" class="btn btn-primary btn-full mt-12">📊 그래프 보기</a>
+
+    <!-- ── 데이터 가져오기 ────────────────────────────────────────── -->
+    <div class="card mt-12">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer"
+           onclick="toggleImport()">
+        <div class="section-title" style="margin:0">📥 데이터 가져오기</div>
+        <span id="importArrow" style="color:var(--muted);font-size:13px">▼ 펼치기</span>
+      </div>
+      <div id="importSection" style="display:none;margin-top:14px">
+        <!-- 방법 1: 붙여넣기 -->
+        <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">방법 1 — 엑셀에서 복사 → 붙여넣기</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+          날짜·체중 두 열을 드래그해서 복사한 뒤 붙여넣으세요. (12/10, 2025-12-10 등 자유롭게)
+        </p>
+        <textarea class="paste-area" id="pasteArea"
+          placeholder="2025-12-10&#9;124.0
+2026-01-07&#9;117.4
+..."></textarea>
+        <div class="flex-row gap-8 mt-8">
+          <button class="btn btn-ghost btn-sm" onclick="clearPaste()">지우기</button>
+          <button class="btn btn-primary btn-sm" onclick="parsePaste()">미리보기</button>
+        </div>
+        <!-- 방법 2: 파일 -->
+        <div style="font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 8px">방법 2 — 파일 업로드 (.xlsx / .csv)</div>
+        <div class="dropzone" id="importDropzone" onclick="document.getElementById('importFile').click()">
+          <div class="dz-icon">📂</div>
+          <p>클릭하거나 파일을 드롭하세요</p>
+          <small>.xlsx, .xls, .csv 지원</small>
+        </div>
+        <input type="file" id="importFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImportFile(event)">
+        <!-- 미리보기 -->
+        <div id="importPreviewCard" style="display:none;margin-top:12px">
+          <div class="section-title" id="importPreviewTitle">미리보기</div>
+          <div id="importPreviewWrap" style="overflow-x:auto;max-height:240px;overflow-y:auto"></div>
+          <div class="flex-row gap-8 mt-8">
+            <button class="btn btn-ghost btn-sm" onclick="cancelImportPreview()">취소</button>
+            <button class="btn btn-primary btn-sm" id="doImportBtn" onclick="doImport()">
+              📥 <span id="importCount">0</span>개 가져오기
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`;
 }
 
 window.toggleHistory = () => {
@@ -236,6 +281,105 @@ function showToast(msg,type='ok'){
   t.textContent=msg; t.className=`toast show ${type}`;
   setTimeout(()=>t.className='toast',2000);
 }
+
+// ── 가져오기 ─────────────────────────────────────────────────────────
+window.toggleImport = () => {
+  const sec=document.getElementById('importSection');
+  const arrow=document.getElementById('importArrow');
+  if(sec.style.display==='none'){sec.style.display='';arrow.textContent='▲ 접기';}
+  else{sec.style.display='none';arrow.textContent='▼ 펼치기';}
+};
+
+function parseImportDate(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s || s === '-') return null;
+  if (/^\d{5}$/.test(s)) { const d=new Date((parseInt(s)-25569)*86400000); return toDateStr(d); }
+  const cleaned = s.replace(/[./년월]/g,'-').replace(/일/g,'').replace(/\s+/g,'');
+  const patterns = [/^(\d{4})-(\d{1,2})-(\d{1,2})$/,/^(\d{2})-(\d{1,2})-(\d{1,2})$/,/^(\d{1,2})-(\d{1,2})$/];
+  for (const p of patterns) {
+    const m = cleaned.match(p);
+    if (m) {
+      let year,month,day;
+      if(m.length===4){year=m[1].length===2?2000+parseInt(m[1]):parseInt(m[1]);month=parseInt(m[2]);day=parseInt(m[3]);}
+      else{year=new Date().getFullYear();month=parseInt(m[1]);day=parseInt(m[2]);}
+      if(month<1||month>12||day<1||day>31)return null;
+      return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    }
+  }
+  const d=new Date(s); return isNaN(d.getTime())?null:toDateStr(d);
+}
+function parseImportRows(rows) {
+  const result=[];
+  for(const row of rows){
+    if(!row||row.length<2)continue;
+    let dateVal=null,weightVal=null;
+    for(let i=0;i<row.length;i++){
+      const cell=String(row[i]).trim();
+      if(!dateVal){const d=parseImportDate(cell);if(d){dateVal=d;continue;}}
+      if(!weightVal&&dateVal){const w=parseWeight(cell);if(w!==null){weightVal=w;break;}}
+    }
+    if(!dateVal)continue;
+    result.push({date:dateVal,weight:weightVal,ok:weightVal!==null});
+  }
+  return result;
+}
+let pendingImport=[];
+function showImportPreview(records){
+  pendingImport=records.filter(r=>r.ok);
+  const ok=pendingImport.length,skip=records.length-ok;
+  document.getElementById('importPreviewTitle').textContent=`미리보기 — ${ok}개 가져올 수 있음 (${skip}개 건너뜀)`;
+  document.getElementById('importCount').textContent=ok;
+  let html=`<table class="preview-table"><thead><tr><th>날짜</th><th>체중</th><th>상태</th></tr></thead><tbody>`;
+  records.slice(0,100).forEach(r=>{html+=`<tr><td>${r.date}</td><td>${r.weight!=null?r.weight.toFixed(1)+' kg':'-'}</td><td>${r.ok?'<span class="badge-ok">✓</span>':'<span class="badge-skip">건너뜀</span>'}</td></tr>`;});
+  if(records.length>100)html+=`<tr><td colspan="3" style="text-align:center;color:var(--muted)">...외 ${records.length-100}개</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('importPreviewWrap').innerHTML=html;
+  document.getElementById('importPreviewCard').style.display='';
+}
+window.cancelImportPreview=()=>{document.getElementById('importPreviewCard').style.display='none';pendingImport=[];};
+window.clearPaste=()=>{document.getElementById('pasteArea').value='';};
+window.parsePaste=()=>{
+  const text=document.getElementById('pasteArea').value.trim();
+  if(!text){showToast('붙여넣을 데이터가 없어요','err');return;}
+  showImportPreview(parseImportRows(text.split('\n').map(l=>l.split(/\t|,/))));
+};
+window.handleImportFile=(e)=>{
+  const file=e.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,dateNF:'YYYY-MM-DD'});
+      showImportPreview(parseImportRows(raw.filter(r=>r.some(c=>c))));
+    }catch(err){showToast('파일 파싱 오류: '+err.message,'err');}
+  };
+  reader.readAsArrayBuffer(file);
+};
+// 드래그 앤 드롭
+window.addEventListener('load',()=>{
+  const dz=document.getElementById('importDropzone'); if(!dz)return;
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop',e=>{
+    e.preventDefault();dz.classList.remove('drag-over');
+    const file=e.dataTransfer.files[0];
+    if(file){document.getElementById('importFile').files=e.dataTransfer.files;handleImportFile({target:{files:[file]}});}
+  });
+});
+window.doImport=async()=>{
+  if(!pendingImport.length){showToast('가져올 데이터가 없어요','err');return;}
+  const btn=document.getElementById('doImportBtn');
+  btn.disabled=true;btn.textContent='저장 중...';
+  try{
+    await batchSetWeights(uid,pendingImport);
+    showToast(`${pendingImport.length}개 저장 완료 ✓`,'ok');
+    cancelImportPreview();
+    render();
+  }catch(e){showToast('오류: '+e.message,'err');}
+  finally{btn.disabled=false;btn.innerHTML=`📥 <span id="importCount">${pendingImport.length}</span>개 가져오기`;}
+};
 
 render().catch(console.error);
 </script>

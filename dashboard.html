@@ -48,17 +48,46 @@
 
 <!-- 프로필 수정 모달 -->
 <div class="modal-bg" id="profileModal">
-  <div class="modal">
+  <div class="modal" style="max-height:90vh;overflow-y:auto">
     <h3>✏️ 프로필 수정</h3>
+
+    <!-- 이모지 -->
     <div class="input-group">
       <label class="input-label">이모지</label>
       <div id="profileEmojiGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:8px"></div>
       <input class="input-field" id="profileCustomEmoji" placeholder="직접 입력 (예: 🦁)" maxlength="4">
     </div>
+
+    <!-- 키 / 생년월일 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="input-group">
+        <label class="input-label">키 (cm) *</label>
+        <input class="input-field" id="profileHeight" type="number" placeholder="175" min="100" max="250">
+      </div>
+      <div class="input-group">
+        <label class="input-label">출생연도 *</label>
+        <input class="input-field" id="profileBirthYear" type="number" placeholder="1990" min="1930" max="2010">
+      </div>
+    </div>
+
+    <!-- 테두리 -->
+    <div class="input-group mt-12">
+      <label class="input-label">테두리</label>
+      <div id="profileBorderSection" style="font-size:12px;color:var(--muted);padding:8px 0">업적 달성 시 잠금해제돼요</div>
+    </div>
+
+    <!-- 칭호 -->
+    <div class="input-group mt-8" id="profileTitleGroup" style="display:none">
+      <label class="input-label">칭호</label>
+      <div id="profileTitleSection"></div>
+    </div>
+
+    <!-- 비밀번호 -->
     <div class="input-group mt-12">
       <label class="input-label" id="profilePwLabel">비밀번호</label>
       <div id="profilePwSection"></div>
     </div>
+
     <div class="flex-row gap-8 mt-12">
       <button class="btn btn-ghost btn-full" onclick="closeProfileEdit()">취소</button>
       <button class="btn btn-primary btn-full" onclick="saveProfileEdit()">저장</button>
@@ -88,9 +117,9 @@ window.doLogout = () => { clearAuth(); localStorage.removeItem('uid'); location.
 
 function buildNav(uid) {
   const links=[
-    {href:`dashboard.html?user=${uid}`,icon:'📊',label:'그래프',id:'dashboard'},
-    {href:`input.html?user=${uid}`,    icon:'✏️', label:'입력',  id:'input'},
-    {href:`import.html?user=${uid}`,   icon:'📥', label:'가져오기',id:'import'},
+    {href:`dashboard.html?user=${uid}`,   icon:'📊', label:'그래프',   id:'dashboard'},
+    {href:`input.html?user=${uid}`,        icon:'✏️',  label:'체중 입력', id:'input'},
+    {href:`achievements.html?user=${uid}`, icon:'🏆', label:'업적',     id:'achievements'},
   ];
   [document.getElementById('bottomNav'),document.getElementById('sideNav')].forEach((nav,ni)=>{
     links.forEach(l=>{
@@ -143,15 +172,13 @@ async function render() {
   const todayRecord = records.find(r => r.date === todayStr);
 
   content.innerHTML=`
-    <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
-      <button class="zoom-reset-btn" onclick="resetZoom()">🔍 초기화</button>
-    </div>
     <div class="chart-wrap">
       <canvas id="mainC"></canvas>
     </div><!-- /chart-wrap -->
 
     <!-- 그래프 옵션 토글 -->
-    <div class="opt-panel">
+    <div class="opt-panel" style="position:relative">
+      <button class="zoom-reset-btn" onclick="resetZoom()" style="position:absolute;top:8px;right:8px">🔍 초기화</button>
       <span class="opt-label">그래프</span>
       <label class="opt-item"><input type="checkbox" id="t7ma"  ${S.show7dayMA!==false?'checked':''}> 7일평균</label>
       <label class="opt-item"><input type="checkbox" id="tbar"  ${S.showWeeklyBar!==false?'checked':''}> 주간막대</label>
@@ -193,7 +220,7 @@ async function render() {
 
     <div class="flex-row gap-8 mt-12" style="justify-content:flex-end">
       <a href="input.html?user=${uid}" class="btn btn-ghost btn-sm">✏️ 전체 입력</a>
-      <a href="import.html?user=${uid}" class="btn btn-ghost btn-sm">📥 가져오기</a>
+      <a href="achievements.html?user=${uid}" class="btn btn-ghost btn-sm">🏆 업적</a>
     </div>`;
 
   doRender();
@@ -218,6 +245,24 @@ window.openProfileEdit = () => {
     `<button style="font-size:22px;padding:4px;border-radius:7px;cursor:pointer;background:${e===selectedProfileEmoji?'rgba(0,229,170,.15)':'transparent'};border:2px solid ${e===selectedProfileEmoji?'var(--teal)':'transparent'};transition:all .15s" onclick="pickProfileEmoji('${e}')">${e}</button>`
   ).join('');
   document.getElementById('profileCustomEmoji').value = '';
+  document.getElementById('profileHeight').value    = user.height    || '';
+  document.getElementById('profileBirthYear').value = user.birthYear || '';
+
+  // 칭호 섹션 (보유한 칭호만 표시)
+  const earnedTitles = user.earnedTitles || [];
+  const titleGroup = document.getElementById('profileTitleGroup');
+  const titleSection = document.getElementById('profileTitleSection');
+  if (earnedTitles.length > 0) {
+    titleGroup.style.display = '';
+    const currentTitle = user.selectedTitle || '';
+    titleSection.innerHTML = `
+      <select class="input-field" id="profileTitleSelect">
+        <option value="">칭호 없음</option>
+        ${earnedTitles.map(t => `<option value="${t}" ${t===currentTitle?'selected':''}>${t}</option>`).join('')}
+      </select>`;
+  } else {
+    titleGroup.style.display = 'none';
+  }
 
   // 비밀번호 섹션
   const hasPw = !!user.passwordHash;
@@ -248,17 +293,23 @@ window.pickProfileEmoji = e => {
   });
 };
 window.saveProfileEdit = async () => {
-  const custom = document.getElementById('profileCustomEmoji').value.trim();
-  const emoji  = custom || selectedProfileEmoji;
+  const custom    = document.getElementById('profileCustomEmoji').value.trim();
+  const emoji     = custom || selectedProfileEmoji;
   if(!emoji) return;
+
+  const height    = parseInt(document.getElementById('profileHeight')?.value) || null;
+  const birthYear = parseInt(document.getElementById('profileBirthYear')?.value) || null;
+  if (!height)    { showToast('키를 입력해주세요','err'); return; }
+  if (!birthYear) { showToast('출생연도를 입력해주세요','err'); return; }
 
   const pw  = document.getElementById('profileNewPw')?.value || '';
   const pwC = document.getElementById('profileNewPwC')?.value || '';
   if (pw && pw !== pwC) { showToast('비밀번호가 일치하지 않아요','err'); return; }
   if (pw && !/^\d{4}$/.test(pw)) { showToast('숫자 4자리로 입력해주세요','err'); return; }
 
-  await updateUser(uid, { emoji });
-  user = { ...user, emoji };
+  const selectedTitle = document.getElementById('profileTitleSelect')?.value || user.selectedTitle || null;
+  await updateUser(uid, { emoji, selectedTitle, height, birthYear });
+  user = { ...user, emoji, selectedTitle, height, birthYear };
   document.getElementById('chipEmoji').textContent = emoji;
 
   if (pw) {

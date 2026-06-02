@@ -1,4 +1,4 @@
-const CACHE = 'weight-v31';
+const CACHE = 'weight-v34';
 const ASSETS = [
   '/index.html','/dashboard.html','/input.html','/import.html',
   '/admin-login.html','/admin.html',
