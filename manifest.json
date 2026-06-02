@@ -1,7 +1,7 @@
 {
-  "name": "체중 그래프",
-  "short_name": "체중",
-  "description": "개인 체중 감량 기록 앱",
+  "name": "마웨그 | My Weight Graph",
+  "short_name": "마웨그",
+  "description": "나만의 체중 변화 기록 앱",
   "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#0d1117",

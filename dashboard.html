@@ -7,7 +7,11 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="favicon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-  <title>체중 그래프</title>
+  <title>마웨그 | My Weight Graph</title>
+  <meta property="og:title" content="마웨그 | MyWeG">
+  <meta property="og:description" content="나만의 체중 변화 그래프 — 기록하고, 분석하고, 목표를 이루세요.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="favicon.png">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -31,7 +35,7 @@
 </head>
 <body>
 <header class="top-bar">
-  <span class="title">📊 체중 그래프</span>
+  <span class="title">📊 마웨그</span>
   <nav class="side-nav" id="sideNav"></nav>
   <button class="btn btn-ghost btn-sm" id="logoutBtn" style="display:none" onclick="doLogout()">로그아웃</button>
   <div class="user-chip" onclick="openProfileEdit()">
@@ -104,7 +108,7 @@ async function render() {
 
   document.getElementById('chipName').textContent  = user.name;
   document.getElementById('chipEmoji').textContent = user.emoji||'⚖️';
-  document.title = `${user.name} - 체중 그래프`;
+  document.title = `${user.name} | 마웨그`;
 
   const stats   = calcStats(records, user);
   const content = document.getElementById('content');

@@ -72,7 +72,7 @@ export function renderChart(records, userProfile, canvasMain, canvasBar = null, 
   }
 
   const barMax = weeklyData.length ? Math.max(...weeklyData.map(d=>Math.abs(d.y)), 0.1) : 1;
-  const BAR_AREA_H = (showWeeklyBar && weeklyData.length) ? 100 : 0;
+  const BAR_AREA_H = (showWeeklyBar && weeklyData.length) ? 130 : 0;
 
   // x축 범위
   const lastT  = pts[pts.length-1].t;
@@ -156,8 +156,8 @@ export function renderChart(records, userProfile, canvasMain, canvasBar = null, 
     const {ctx, chartArea, scales:{x}} = chart;
 
     const sepY  = chartArea.bottom + 1;
-    const top   = chartArea.bottom + 6;
-    const bot   = chart.height - 4;
+    const top   = chartArea.bottom + 18;
+    const bot   = chart.height - 8;
     const midY  = (top + bot) / 2;
     const maxH  = (bot - top) / 2 - 2;
 
