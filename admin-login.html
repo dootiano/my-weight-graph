@@ -11,10 +11,7 @@
   <h1>🔐 <span>관리자</span></h1>
   <p>관리자 계정으로 로그인하세요</p>
   <div style="width:100%;max-width:320px">
-    <div class="input-group">
-      <label class="input-label">이메일</label>
-      <input class="input-field" id="email" type="email" placeholder="admin@mygraph.pro" value="admin@mygraph.pro">
-    </div>
+    <input type="hidden" id="email" value="admin@mygraph.pro">
     <div class="input-group">
       <label class="input-label">비밀번호</label>
       <input class="input-field" id="password" type="password" placeholder="••••••"
@@ -40,7 +37,7 @@ window.doLogin = async function() {
   const email = document.getElementById('email').value.trim();
   const pw    = document.getElementById('password').value;
   const btn   = document.getElementById('loginBtn');
-  if (!email || !pw) { showToast('이메일과 비밀번호를 입력해주세요', 'err'); return; }
+  if (!pw) { showToast('비밀번호를 입력해주세요', 'err'); return; }
   btn.disabled = true; btn.textContent = '로그인 중...';
   try {
     const cred = await adminSignIn(email, pw);
@@ -50,7 +47,7 @@ window.doLogin = async function() {
     }
     location.href = 'admin.html';
   } catch(e) {
-    showToast('로그인 실패: 이메일/비밀번호 확인', 'err');
+    showToast('비밀번호가 틀렸어요', 'err');
     btn.disabled=false; btn.textContent='로그인';
   }
 };

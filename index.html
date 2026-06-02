@@ -137,8 +137,8 @@ async function render() {
   const params  = new URLSearchParams(location.search);
   const authReq = params.get('auth_required');
 
-  // 마지막 사용자 자동 이동 (auth_required 파라미터 없을 때만)
-  if (!authReq) {
+  // 마지막 사용자 자동 이동 (auth_required, select 파라미터 없을 때만)
+  if (!authReq && !params.get('select')) {
     const lastUid = localStorage.getItem('uid');
     if (lastUid) {
       location.href = `dashboard.html?user=${encodeURIComponent(lastUid)}`;

@@ -109,12 +109,8 @@ export function renderChart(records, userProfile, canvasMain, canvasBar = null, 
   }
   function dot(ctx,px,py,color,r){ ctx.save(); ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle=BG; ctx.lineWidth=2; ctx.stroke(); ctx.restore(); }
 
-  // ── 헤더 플러그인 ────────────────────────────────────────────────────
-  const headerPlugin = {id:'header',beforeDraw(chart){
-    const ctx=chart.ctx,cw=chart.width; ctx.save();
-    ctx.fillStyle='#fff'; ctx.font=`bold 17px sans-serif`; ctx.textAlign='center'; ctx.fillText('체중 변화 그래프',cw/2,28);
-    ctx.restore();
-  }};
+  // 헤더 플러그인 제거 (텍스트 없음)
+  const headerPlugin = {id:'header'};
 
   // ── 어노테이션 플러그인 ──────────────────────────────────────────────
   const annotPlugin = {id:'annot',afterDatasetsDraw(chart){
@@ -300,7 +296,7 @@ export function renderChart(records, userProfile, canvasMain, canvasBar = null, 
     type:'line', data:{datasets},
     options:{
       responsive:true, aspectRatio:isMobile?1.4:2.0,
-      layout:{padding:{top:48, right:isMobile?4:70, bottom:4+BAR_AREA_H, left:isMobile?5:70}},
+      layout:{padding:{top:12, right:isMobile?4:70, bottom:4+BAR_AREA_H, left:isMobile?5:70}},
       plugins:{
         legend:{display:false},
         tooltip:{

@@ -35,13 +35,15 @@
 </head>
 <body>
 <header class="top-bar">
-  <a href="index.html" class="title" style="text-decoration:none;color:inherit">📊 마웨그</a>
+  <a href="index.html?select=1" class="title" style="text-decoration:none;color:inherit">📊 마웨그</a>
   <nav class="side-nav" id="sideNav"></nav>
-  <div class="user-chip" onclick="openProfileEdit()">
-    <span id="chipEmoji">⚖️</span><span id="chipName">-</span>
-    <span style="font-size:10px;color:var(--muted);margin-left:2px" id="chipEdit"></span>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div class="user-chip" onclick="openProfileEdit()">
+      <span id="chipEmoji">⚖️</span><span id="chipName">-</span>
+      <span style="font-size:10px;color:var(--muted);margin-left:2px" id="chipEdit"></span>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="logoutBtn" style="display:none" onclick="doLogout()">로그아웃</button>
   </div>
-  <button class="btn btn-ghost btn-sm" id="logoutBtn" style="display:none" onclick="doLogout()">로그아웃</button>
 </header>
 
 <!-- 프로필 수정 모달 -->
@@ -141,8 +143,7 @@ async function render() {
   const todayRecord = records.find(r => r.date === todayStr);
 
   content.innerHTML=`
-    <div class="chart-title-bar">
-      <span class="chart-title-text">📊 체중 변화 그래프</span>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
       <button class="zoom-reset-btn" onclick="resetZoom()">🔍 초기화</button>
     </div>
     <div class="chart-wrap">
