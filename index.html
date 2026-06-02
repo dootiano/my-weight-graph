@@ -233,15 +233,19 @@ window.pinPress = async key => {
   document.getElementById('pwErr').textContent = '';
 
   if (pinVal.length === 4) {
-    // Firebase 재호출 없이 로컬에서 hash 비교
-    const hash = await sha256(pinVal);
-    if (hash === pwTarget.passwordHash) {
-      saveAuth(pwTarget.id, pwTarget.passwordHash);
-      localStorage.setItem('uid', pwTarget.id);
-      closePwModal();
-      location.href = `dashboard.html?user=${encodeURIComponent(pwTarget.id)}`;
-    } else {
-      document.getElementById('pwErr').textContent = '비밀번호가 틀렸어요';
+    try {
+      const hash = await sha256(pinVal);
+      if (hash === pwTarget.passwordHash) {
+        saveAuth(pwTarget.id, pwTarget.passwordHash);
+        localStorage.setItem('uid', pwTarget.id);
+        closePwModal();
+        location.href = `dashboard.html?user=${encodeURIComponent(pwTarget.id)}`;
+      } else {
+        document.getElementById('pwErr').textContent = '비밀번호가 틀렸어요';
+        pinVal = ''; updateDots();
+      }
+    } catch(e) {
+      document.getElementById('pwErr').textContent = '오류: ' + e.message;
       pinVal = ''; updateDots();
     }
   }
