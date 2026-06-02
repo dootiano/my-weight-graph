@@ -244,15 +244,13 @@ async function handlePin(key) {
   if (pinVal.length === 4) {
     try {
       const hash = await sha256(pinVal);
-      const stored = pwTarget?.passwordHash;
-      // 디버그: 해시 앞 8자리 표시
-      document.getElementById('pwErr').textContent = `입력:${hash.slice(0,8)} 저장:${stored?.slice(0,8)||'없음'}`;
-      if (hash === stored) {
+      if (hash === pwTarget.passwordHash) {
         saveAuth(pwTarget.id, pwTarget.passwordHash);
         localStorage.setItem('uid', pwTarget.id);
         closePwModal();
         location.href = `dashboard.html?user=${encodeURIComponent(pwTarget.id)}`;
       } else {
+        document.getElementById('pwErr').textContent = '비밀번호가 틀렸어요';
         pinVal = ''; updateDots();
       }
     } catch(e) {
@@ -303,6 +301,15 @@ function showToast(msg,type='ok'){
   t.textContent=msg; t.className=`toast show ${type}`;
   setTimeout(()=>t.className='toast',2500);
 }
+
+// 모달 바깥 클릭 시 닫기
+document.getElementById('pwModal').addEventListener('click', e => {
+  if(e.target === document.getElementById('pwModal')) closePwModal();
+});
+document.getElementById('addModal').addEventListener('click', e => {
+  if(e.target === document.getElementById('addModal')) closeModal();
+});
+
 render();
 </script>
 <script src="register-sw.js"></script>

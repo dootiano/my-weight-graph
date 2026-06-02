@@ -293,8 +293,17 @@ window.confirmDelete=(uid,name)=>{
 function addModal(html){
   document.getElementById('delModal').insertAdjacentHTML('beforebegin',
     `<div class="modal-bg open" id="dynModal"><div class="modal">${html}</div></div>`);
+  document.getElementById('dynModal').addEventListener('click', e=>{
+    if(e.target===document.getElementById('dynModal')) rmModal();
+  });
 }
 window.rmModal=()=>document.getElementById('dynModal')?.remove();
+
+// delModal 바깥 클릭 닫기
+document.getElementById('delModal').addEventListener('click', e=>{
+  if(e.target===document.getElementById('delModal'))
+    document.getElementById('delModal').classList.remove('open');
+});
 
 function showToast(msg,type='ok'){
   const t=document.getElementById('toast');
