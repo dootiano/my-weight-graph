@@ -15,11 +15,14 @@
     .profile-card {
       position: relative; overflow: hidden;
       border-radius: 16px; padding: 28px 20px 22px;
-      border: 1px solid color-mix(in srgb, var(--tc) 35%, transparent);
-      background:
-        radial-gradient(ellipse 80% 60% at 50% -10%, color-mix(in srgb, var(--tc) 18%, transparent) 0%, transparent 70%),
-        var(--surface);
+      border: 1px solid rgba(255,255,255,.12);
+      background: var(--surface);
       text-align: center;
+    }
+    .profile-card::after {
+      content:''; position:absolute; inset:0; border-radius:16px;
+      background: radial-gradient(ellipse 90% 55% at 50% -5%, var(--tc-a18,rgba(0,229,170,.18)) 0%, transparent 70%);
+      pointer-events:none;
     }
     /* 배경 장식선 */
     .profile-card::before {
@@ -28,8 +31,8 @@
       background: repeating-linear-gradient(
         -55deg,
         transparent, transparent 40px,
-        color-mix(in srgb, var(--tc) 3%, transparent) 40px,
-        color-mix(in srgb, var(--tc) 3%, transparent) 41px
+        rgba(255,255,255,.015) 40px,
+        rgba(255,255,255,.015) 41px
       );
       pointer-events:none;
     }
@@ -40,8 +43,8 @@
       display: inline-block;
       font-size: 11px; font-weight: 800; letter-spacing: .1em;
       color: var(--tc);
-      border: 1px solid color-mix(in srgb, var(--tc) 40%, transparent);
-      background: color-mix(in srgb, var(--tc) 10%, transparent);
+      border: 1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.06);
       border-radius: 20px; padding: 3px 12px; margin-bottom: 10px;
     }
 
@@ -69,7 +72,7 @@
     .profile-stat { flex:1; }
     .profile-stat-divider {
       width: 1px; height: 52px;
-      background: color-mix(in srgb, var(--tc) 20%, transparent);
+      background: rgba(255,255,255,.1);
       flex-shrink: 0;
     }
     .profile-score-num {
@@ -99,13 +102,11 @@
     .profile-progress-bar {
       height: 16px; border-radius: 8px;
       background: rgba(255,255,255,.06); overflow: hidden;
-      position: relative; border: 1px solid color-mix(in srgb, var(--tc) 15%, transparent);
+      position: relative; border: 1px solid rgba(255,255,255,.1);
     }
     .profile-progress-fill {
       height: 100%; border-radius: 8px;
-      background: linear-gradient(90deg,
-        color-mix(in srgb, var(--tc) 60%, #000),
-        var(--tc));
+      background: linear-gradient(90deg, rgba(0,0,0,.3), transparent), var(--tc);
       position: relative; transition: width .8s cubic-bezier(.22,1,.36,1);
       overflow: hidden;
     }
@@ -320,10 +321,14 @@ function fmtDate(ts) {
 
 async function render() {
   buildNav();
-  const [user, records, storedRaw, tierData] = await Promise.all([
-    getUser(uid), getWeights(uid), getEarnedAchievements(uid), getTierSettings()
-  ]);
+  const [user, records] = await Promise.all([getUser(uid), getWeights(uid)]);
   if (!user) { location.href = 'index.html'; return; }
+
+  // Firebase 권한 오류 시 빈 배열로 fallback
+  const [storedRaw, tierData] = await Promise.all([
+    getEarnedAchievements(uid).catch(() => []),
+    getTierSettings().catch(() => null)
+  ]);
   _user = user;
 
   document.getElementById('chipName').textContent  = user.name;
@@ -376,7 +381,7 @@ async function render() {
   const donutFill = (donutPct * donutC).toFixed(1);
 
   document.getElementById('content').innerHTML = `
-    <div class="profile-card" style="--tc:${tier.color}">
+    <div class="profile-card" style="--tc:${tier.color};border-color:${tier.color}55">
       <div class="profile-card-inner">
 
         ${user.selectedTitle ? `<div class="profile-title-badge">${user.selectedTitle}</div>` : ''}

@@ -1,5 +1,5 @@
 // ── 업적 시작일 ──────────────────────────────────────────────────────
-export const ACHIEVEMENT_START_DATE = '2026-05-01';
+export const ACHIEVEMENT_START_DATE = '2026-03-01';
 
 // ── 카테고리 ─────────────────────────────────────────────────────────
 export const ACHIEVEMENT_CATEGORIES = [

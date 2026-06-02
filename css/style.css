@@ -152,18 +152,17 @@ input  { font-family: inherit; outline: none; }
 
 /* 사용자 선택 */
 .user-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 12px; margin-top: 20px;
   width: 100%;
-}
-@media (min-width: 768px) {
-  .user-grid { grid-template-columns: repeat(5, 1fr); }
 }
 .user-card {
   background: var(--surface); border: 1.5px solid var(--border);
   border-radius: 14px; padding: 20px 10px;
   text-align: center; cursor: pointer; transition: all .2s;
+  width: 140px; flex-shrink: 0;
 }
 .user-card:hover { border-color: var(--teal); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,229,170,.08); }
 .user-card:active { transform: scale(.97); }
