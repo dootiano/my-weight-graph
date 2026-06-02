@@ -156,7 +156,7 @@ export function renderChart(records, userProfile, canvasMain, canvasBar = null, 
     const {ctx, chartArea, scales:{x}} = chart;
 
     const sepY  = chartArea.bottom + 1;
-    const top   = chartArea.bottom + 18;
+    const top   = chartArea.bottom + 28;
     const bot   = chart.height - 8;
     const midY  = (top + bot) / 2;
     const maxH  = (bot - top) / 2 - 2;

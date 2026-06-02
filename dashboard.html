@@ -35,13 +35,13 @@
 </head>
 <body>
 <header class="top-bar">
-  <span class="title">📊 마웨그</span>
+  <a href="index.html" class="title" style="text-decoration:none;color:inherit">📊 마웨그</a>
   <nav class="side-nav" id="sideNav"></nav>
-  <button class="btn btn-ghost btn-sm" id="logoutBtn" style="display:none" onclick="doLogout()">로그아웃</button>
   <div class="user-chip" onclick="openProfileEdit()">
     <span id="chipEmoji">⚖️</span><span id="chipName">-</span>
     <span style="font-size:10px;color:var(--muted);margin-left:2px" id="chipEdit"></span>
   </div>
+  <button class="btn btn-ghost btn-sm" id="logoutBtn" style="display:none" onclick="doLogout()">로그아웃</button>
 </header>
 
 <!-- 프로필 수정 모달 -->
@@ -52,6 +52,10 @@
       <label class="input-label">이모지</label>
       <div id="profileEmojiGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:8px"></div>
       <input class="input-field" id="profileCustomEmoji" placeholder="직접 입력 (예: 🦁)" maxlength="4">
+    </div>
+    <div class="input-group mt-12">
+      <label class="input-label" id="profilePwLabel">비밀번호</label>
+      <div id="profilePwSection"></div>
     </div>
     <div class="flex-row gap-8 mt-12">
       <button class="btn btn-ghost btn-full" onclick="closeProfileEdit()">취소</button>
@@ -70,8 +74,8 @@
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { getUser, getWeights, getSettings, updateSettings, setWeight, toDateStr, parseWeight, updateUser } from './js/db.js';
-import { isAuthed, clearAuth } from './js/auth.js';
+import { getUser, getWeights, getSettings, updateSettings, setWeight, toDateStr, parseWeight, updateUser, setUserPassword } from './js/db.js';
+import { isAuthed, clearAuth, saveAuth } from './js/auth.js';
 import { renderChart, calcStats } from './js/chart-render.js';
 
 const uid = new URLSearchParams(location.search).get('user') || localStorage.getItem('uid');
@@ -213,9 +217,26 @@ window.openProfileEdit = () => {
     `<button style="font-size:22px;padding:4px;border-radius:7px;cursor:pointer;background:${e===selectedProfileEmoji?'rgba(0,229,170,.15)':'transparent'};border:2px solid ${e===selectedProfileEmoji?'var(--teal)':'transparent'};transition:all .15s" onclick="pickProfileEmoji('${e}')">${e}</button>`
   ).join('');
   document.getElementById('profileCustomEmoji').value = '';
+
+  // 비밀번호 섹션
+  const hasPw = !!user.passwordHash;
+  document.getElementById('profilePwLabel').textContent = hasPw ? '비밀번호 변경' : '비밀번호 설정 (선택)';
+  document.getElementById('profilePwSection').innerHTML = `
+    <input class="input-field" id="profileNewPw" type="password" inputmode="numeric"
+      maxlength="4" placeholder="${hasPw?'새 비밀번호 4자리':'비워두면 공개'}" style="margin-bottom:8px">
+    <input class="input-field" id="profileNewPwC" type="password" inputmode="numeric"
+      maxlength="4" placeholder="확인">
+    ${hasPw ? `<button class="btn btn-ghost btn-sm mt-8" onclick="removeProfilePw()" style="color:var(--red);width:100%">🗑 비밀번호 제거</button>` : ''}
+  `;
+
   document.getElementById('profileModal').classList.add('open');
 };
 window.closeProfileEdit = () => document.getElementById('profileModal').classList.remove('open');
+
+// 프로필 모달 바깥 클릭 시 닫기
+document.getElementById('profileModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('profileModal')) closeProfileEdit();
+});
 window.pickProfileEmoji = e => {
   selectedProfileEmoji = e;
   document.getElementById('profileCustomEmoji').value = '';
@@ -229,11 +250,33 @@ window.saveProfileEdit = async () => {
   const custom = document.getElementById('profileCustomEmoji').value.trim();
   const emoji  = custom || selectedProfileEmoji;
   if(!emoji) return;
+
+  const pw  = document.getElementById('profileNewPw')?.value || '';
+  const pwC = document.getElementById('profileNewPwC')?.value || '';
+  if (pw && pw !== pwC) { showToast('비밀번호가 일치하지 않아요','err'); return; }
+  if (pw && !/^\d{4}$/.test(pw)) { showToast('숫자 4자리로 입력해주세요','err'); return; }
+
   await updateUser(uid, { emoji });
   user = { ...user, emoji };
   document.getElementById('chipEmoji').textContent = emoji;
+
+  if (pw) {
+    const newHash = await setUserPassword(uid, pw);
+    saveAuth(uid, newHash);
+    user = { ...user, passwordHash: newHash };
+    showToast('프로필 및 비밀번호 변경됨 ✓', 'ok');
+  } else {
+    showToast('프로필 변경됨 ✓', 'ok');
+  }
   closeProfileEdit();
-  showToast('프로필 변경됨 ✓', 'ok');
+};
+
+window.removeProfilePw = async () => {
+  await setUserPassword(uid, null);
+  clearAuth();
+  user = { ...user, passwordHash: null };
+  closeProfileEdit();
+  showToast('비밀번호가 제거됐어요', 'ok');
 };
 
 window.saveTodayWeight = async () => {
