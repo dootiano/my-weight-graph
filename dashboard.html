@@ -132,7 +132,6 @@ async function render() {
     </div>
     <div class="chart-wrap">
       <canvas id="mainC"></canvas>
-      <div id="barWrap" style="${S.showWeeklyBar===false?'display:none':''}"><canvas id="barC"></canvas></div>
     </div><!-- /chart-wrap -->
 
     <!-- 그래프 옵션 토글 -->
@@ -242,24 +241,15 @@ window.saveTodayWeight = async () => {
 
 window.resetZoom = () => {
   const mc = document.getElementById('mainC');
-  const bc = document.getElementById('barC');
-  if (mc?._chartInstance) {
-    mc._chartInstance.resetZoom();
-    if (bc?._chartInstance) {
-      bc._chartInstance.options.scales.x.min = mc._startTs;
-      bc._chartInstance.options.scales.x.max = mc._endTs;
-      bc._chartInstance.update('none');
-    }
-  }
+  if (mc?._chartInstance) mc._chartInstance.resetZoom();
 };
 function bindToggles_dummy() {
 }
 
 function doRender() {
   const mainC=document.getElementById('mainC');
-  const barC=document.getElementById('barC');
-  if(mainC && barC) {
-    renderChart(records, user, mainC, barC, S);
+  if(mainC) {
+    renderChart(records, user, mainC, null, S);
     bindWheelScroll(mainC);
   }
 }
@@ -319,10 +309,7 @@ function bindToggles(stats) {
     });
   };
   bind('t7ma','show7dayMA');
-  bind('tbar','showWeeklyBar', val=>{
-    const bw=document.getElementById('barWrap');
-    if(bw) bw.style.display=val?'':'none';
-  });
+  bind('tbar','showWeeklyBar');
   bind('tpred','showPrediction');
 
   // 스탯 토글

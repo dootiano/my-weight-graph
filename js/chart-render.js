@@ -1,7 +1,7 @@
 // chart-render.js
 
-export function renderChart(records, userProfile, canvasMain, canvasBar, options = {}) {
-  const goal   = userProfile?.goal ?? 80;
+export function renderChart(records, userProfile, canvasMain, canvasBar = null, options = {}) {
+  const goal = userProfile?.goal ?? 80;
   const {
     show7dayMA     = true,
     showWeeklyBar  = true,
@@ -12,8 +12,9 @@ export function renderChart(records, userProfile, canvasMain, canvasBar, options
     showCurMarker  = true,
   } = options;
 
+  // 기존 인스턴스 제거
   if (canvasMain._chartInstance) canvasMain._chartInstance.destroy();
-  if (canvasBar._chartInstance)  canvasBar._chartInstance.destroy();
+  if (canvasBar?._chartInstance) canvasBar._chartInstance.destroy();
 
   const pts = records
     .filter(r => r.weight != null)
@@ -25,12 +26,9 @@ export function renderChart(records, userProfile, canvasMain, canvasBar, options
   const maxW   = Math.max(...ws), minW = Math.min(...ws), curW = pts[pts.length-1].w;
   const yMin   = Math.floor(goal * 0.9), yMax = Math.ceil(maxW) + 3;
   const maxIdx = ws.indexOf(maxW);
-  const minIndices     = ws.reduce((a,w,i) => w===minW?[...a,i]:a, []);
-  const prevMinW       = ws.filter(w=>w>minW).reduce((a,b)=>Math.min(a,b), Infinity);
-  const prevMinIndices = isFinite(prevMinW)
-    ? ws.reduce((a,w,i)=>Math.abs(w-prevMinW)<0.01?[...a,i]:a, []) : [];
+  const minIndices = ws.reduce((a,w,i) => w===minW?[...a,i]:a, []);
 
-  const fmt   = d => `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+  const fmt      = d => `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
   const isMobile = window.innerWidth < 768;
   const Y_AXIS_W = isMobile ? 42 : 52;
 
@@ -40,7 +38,7 @@ export function renderChart(records, userProfile, canvasMain, canvasBar, options
     return { x: p.t, y: +(sl.reduce((s,q)=>s+q.w,0)/sl.length).toFixed(1) };
   });
 
-  // 예상 그래프 (최근 6주 페이스)
+  // 예상 그래프
   let predData = [];
   const recent = pts.filter(p => p.t >= pts[pts.length-1].t - 42*86400000);
   if (recent.length >= 2) {
@@ -53,7 +51,7 @@ export function renderChart(records, userProfile, canvasMain, canvasBar, options
       predData.push({ x: last.t+w*7*86400000, y: +(last.w-rate*w*7).toFixed(1) });
   }
 
-  // 주간 막대
+  // 주간 막대 데이터
   function getSun(d){ const dt=new Date(d); dt.setDate(dt.getDate()-dt.getDay()); dt.setHours(0,0,0,0); return dt.getTime(); }
   function wkLabel(ts){
     const d=new Date(ts), mo=d.getMonth()+1;
@@ -70,14 +68,22 @@ export function renderChart(records, userProfile, canvasMain, canvasBar, options
     const prev=wkAvg.get(sortedWks[i-1]), curr=wkAvg.get(sortedWks[i]);
     if(!prev||!curr) continue;
     const raw=+(curr.avg-prev.avg).toFixed(1);
-    weeklyData.push({x:curr.x,y:-raw,raw,label:curr.label});
+    weeklyData.push({x:curr.x, y:-raw, raw, label:curr.label});
   }
+
+  const barMax = weeklyData.length ? Math.max(...weeklyData.map(d=>Math.abs(d.y)), 0.1) : 1;
+  const BAR_AREA_H = (showWeeklyBar && weeklyData.length) ? 100 : 0;
+
+  // x축 범위
+  const lastT  = pts[pts.length-1].t;
+  const endTs  = showPrediction&&predData.length>0 ? lastT+8*7*86400000+7*86400000 : lastT+12*86400000;
+  const startTs = pts[0].t-6*86400000;
 
   // 색상
   const TEAL='#00e5aa',ORANGE='#ffa726',RED='#ef5350',BLUE='#4fc3f7',GREEN='#66bb6a',BG='#0d1117';
   const PURPLE='rgba(180,130,255,0.85)',GRID='rgba(255,255,255,0.07)',TICK='rgba(255,255,255,0.6)';
 
-  // 말풍선 그리기
+  // ── 말풍선 ──────────────────────────────────────────────────────────
   function rrect(ctx,x,y,w,h,r){
     ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
     ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
@@ -103,18 +109,18 @@ export function renderChart(records, userProfile, canvasMain, canvasBar, options
   }
   function dot(ctx,px,py,color,r){ ctx.save(); ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fillStyle=color; ctx.fill(); ctx.strokeStyle=BG; ctx.lineWidth=2; ctx.stroke(); ctx.restore(); }
 
-  // 헤더
-  const headerPlugin={id:'header',beforeDraw(chart){
+  // ── 헤더 플러그인 ────────────────────────────────────────────────────
+  const headerPlugin = {id:'header',beforeDraw(chart){
     const ctx=chart.ctx,cw=chart.width; ctx.save();
     ctx.fillStyle='#fff'; ctx.font=`bold 17px sans-serif`; ctx.textAlign='center'; ctx.fillText('체중 변화 그래프',cw/2,28);
     ctx.restore();
   }};
 
-  // 어노테이션
-  const annotPlugin={id:'annot',afterDatasetsDraw(chart){
+  // ── 어노테이션 플러그인 ──────────────────────────────────────────────
+  const annotPlugin = {id:'annot',afterDatasetsDraw(chart){
     const ctx=chart.ctx, xs=chart.scales.x, ys=chart.scales.y;
     const gx=v=>xs.getPixelForValue(v), gy=v=>ys.getPixelForValue(v), area=chart.chartArea;
-    const scale=Math.max(0.6, Math.min(2.0, (endTs-startTs)/(xs.max-xs.min)));
+    const scale=Math.max(0.6,Math.min(2.0,(endTs-startTs)/(xs.max-xs.min)));
     const sBP=Math.round(BP*scale), sBLH=Math.round(BLH*scale), sBOFF=Math.round(BOFF*scale);
     const sFont0=Math.round(10*scale), sFont1=Math.round(9*scale);
 
@@ -124,12 +130,12 @@ export function renderChart(records, userProfile, canvasMain, canvasBar, options
       drawBox(ctx,gx(mp.t),gy(mp.w),gx(mp.t)+12,gy(mp.w)+Math.round(14*scale),[`최고  ${maxW.toFixed(1)} kg`,fmt(mp.date)],'195,65,42',chart,sBP,sBLH,sFont0,sFont1);
     }
     if(showMinMarker){
-      const lastIdx = pts.length-1;
-      const drawMinIndices = minIndices.filter(i => i !== lastIdx);
-      if(drawMinIndices.length > 0){
-        const mi=pts[drawMinIndices[drawMinIndices.length-1]], mix=gx(mi.t), miy=gy(mi.w);
+      const lastIdx=pts.length-1;
+      const drawMinIdx=minIndices.filter(i=>i!==lastIdx);
+      if(drawMinIdx.length>0){
+        const mi=pts[drawMinIdx[drawMinIdx.length-1]], mix=gx(mi.t), miy=gy(mi.w);
         dot(ctx,mix,miy,GREEN,7);
-        const minLines=[`최저  ${minW.toFixed(1)} kg`, ...drawMinIndices.slice(0,2).map(i=>fmt(pts[i].date))];
+        const minLines=[`최저  ${minW.toFixed(1)} kg`,...drawMinIdx.slice(0,2).map(i=>fmt(pts[i].date))];
         drawBox(ctx,mix,miy,mix+12,miy+Math.round(14*scale),minLines,'34,128,50',chart,sBP,sBLH,sFont0,sFont1);
       }
     }
@@ -144,21 +150,141 @@ export function renderChart(records, userProfile, canvasMain, canvasBar, options
     }
   }};
 
-  // x축 범위
-  const lastT=pts[pts.length-1].t;
-  const endTs=showPrediction&&predData.length>0 ? lastT+8*7*86400000+7*86400000 : lastT+12*86400000;
-  const startTs=pts[0].t-6*86400000;
-  const sharedX={type:'time',min:startTs,max:endTs,time:{unit:'month',displayFormats:{month:'yyyy.MM'}},grid:{color:GRID},border:{color:'rgba(255,255,255,.15)'}};
+  // ── 주간 바 플러그인 (같은 캔버스, 같은 x축) ─────────────────────────
+  const weeklyBarPlugin = {id:'weeklyBar',afterDraw(chart){
+    if(!showWeeklyBar || !weeklyData.length) return;
+    const {ctx, chartArea, scales:{x}} = chart;
 
-  // 줌 동기화
-  function syncBar(mainChart){
-    const bc=canvasBar._chartInstance; if(!bc)return;
-    bc.options.scales.x.min=mainChart.scales.x.min;
-    bc.options.scales.x.max=mainChart.scales.x.max;
-    bc.update('none');
-  }
+    const sepY  = chartArea.bottom + 1;
+    const top   = chartArea.bottom + 6;
+    const bot   = chart.height - 4;
+    const midY  = (top + bot) / 2;
+    const maxH  = (bot - top) / 2 - 2;
 
-  // 데이터셋
+    // 바 너비: 연속 바 간격의 45%
+    const xPos = weeklyData.map(d => x.getPixelForValue(d.x));
+    let barW = 14;
+    if(xPos.length > 1){
+      const gaps = xPos.slice(1).map((p,i) => p - xPos[i]).filter(g => g > 2);
+      if(gaps.length) barW = Math.max(4, Math.min(20, Math.min(...gaps) * 0.45));
+    }
+
+    ctx.save();
+
+    // 구분선
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(chartArea.left, sepY); ctx.lineTo(chartArea.right, sepY); ctx.stroke();
+
+    // 클리핑: 차트 영역 좌우로 제한
+    ctx.beginPath();
+    ctx.rect(chartArea.left, top - 2, chartArea.right - chartArea.left, bot - top + 6);
+    ctx.clip();
+
+    // 0 기준선
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(chartArea.left, midY); ctx.lineTo(chartArea.right, midY); ctx.stroke();
+
+    // 바 그리기
+    weeklyData.forEach((d, i) => {
+      const cx = xPos[i];
+      if(cx < chartArea.left - barW || cx > chartArea.right + barW) return;
+      const h = Math.max(2, Math.abs(d.y) / barMax * maxH);
+      const isLoss = d.y >= 0; // y = -raw, raw<0 = 감량
+      ctx.fillStyle = isLoss ? 'rgba(102,187,106,.82)' : 'rgba(239,83,80,.82)';
+      ctx.beginPath();
+      const rx = cx - barW/2, rw = barW, rr = 2;
+      if(isLoss){
+        // 감량: 위로
+        ctx.roundRect(rx, midY - h, rw, h, [rr, rr, 0, 0]);
+      } else {
+        // 증량: 아래로
+        ctx.roundRect(rx, midY, rw, h, [0, 0, rr, rr]);
+      }
+      ctx.fill();
+    });
+
+    ctx.restore();
+
+    // "주간" 레이블
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('주간', chartArea.left - 3, midY);
+    ctx.restore();
+  }};
+
+  // ── 주간 바 툴팁 플러그인 ────────────────────────────────────────────
+  let _barTooltipIdx = -1;
+  const weeklyBarTooltipPlugin = {id:'weeklyBarTooltip',
+    afterEvent(chart, args){
+      if(!showWeeklyBar || !weeklyData.length) return;
+      const {event} = args;
+      if(!['mousemove','touchstart','click'].includes(event.type)) return;
+
+      const {chartArea, scales:{x}} = chart;
+      const top = chartArea.bottom + 6;
+      const bot = chart.height - 4;
+      const ey  = event.y, ex = event.x;
+
+      if(ey < top || ey > bot){ // 바 영역 밖
+        if(_barTooltipIdx !== -1){ _barTooltipIdx = -1; args.changed = true; }
+        return;
+      }
+
+      const xPos = weeklyData.map(d => x.getPixelForValue(d.x));
+      let barW = 14;
+      if(xPos.length > 1){
+        const gaps = xPos.slice(1).map((p,i)=>p-xPos[i]).filter(g=>g>2);
+        if(gaps.length) barW = Math.max(4, Math.min(20, Math.min(...gaps)*0.45));
+      }
+
+      const hit = weeklyData.findIndex((d,i) => Math.abs(ex - xPos[i]) <= barW + 4);
+      if(hit !== _barTooltipIdx){ _barTooltipIdx = hit; args.changed = true; }
+    },
+    afterDraw(chart){
+      if(!showWeeklyBar || !weeklyData.length || _barTooltipIdx < 0) return;
+      const d = weeklyData[_barTooltipIdx];
+      if(!d) return;
+
+      const {ctx, chartArea, scales:{x}} = chart;
+      const cx  = x.getPixelForValue(d.x);
+      const top = chartArea.bottom + 6;
+      const bot = chart.height - 4;
+      const midY = (top + bot) / 2;
+
+      const text1 = d.label;
+      const text2 = d.raw < 0 ? `감량  ${Math.abs(d.raw).toFixed(1)} kg` : `증량  +${d.raw.toFixed(1)} kg`;
+
+      ctx.save();
+      ctx.font = 'bold 10px sans-serif';
+      const w1 = ctx.measureText(text1).width;
+      ctx.font = '9px sans-serif';
+      const w2 = ctx.measureText(text2).width;
+      const bw = Math.max(w1, w2) + 12, bh = 30;
+      let bx = cx - bw/2;
+      bx = Math.max(chartArea.left, Math.min(bx, chartArea.right - bw));
+      const by = midY - bh - 6;
+
+      ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 6;
+      rrect(ctx, bx, by, bw, bh, 5);
+      ctx.fillStyle = 'rgba(10,18,32,.95)'; ctx.fill();
+      ctx.shadowColor = 'transparent';
+
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText(text1, bx+6, by+11);
+      ctx.font = '9px sans-serif';
+      ctx.fillStyle = d.raw < 0 ? '#66bb6a' : '#ef5350';
+      ctx.fillText(text2, bx+6, by+23);
+      ctx.restore();
+    }
+  };
+
+  // ── 데이터셋 ─────────────────────────────────────────────────────────
   const datasets=[
     {label:'목표',data:[{x:startTs,y:goal},{x:endTs,y:goal}],
      borderColor:'rgba(235,60,60,.55)',backgroundColor:'rgba(180,30,30,.05)',
@@ -168,20 +294,27 @@ export function renderChart(records, userProfile, canvasMain, canvasBar, options
   datasets.push({label:'실제 체중',data:pts.map(p=>({x:p.t,y:p.w})),borderColor:TEAL,backgroundColor:'transparent',borderWidth:2.2,pointRadius:0,pointHoverRadius:5,tension:.15,spanGaps:false,order:1});
   if(showPrediction&&predData.length>1) datasets.push({label:'예상 체중',data:predData,borderColor:PURPLE,backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,6],pointRadius:3,pointHoverRadius:6,pointBackgroundColor:PURPLE,tension:.2,order:3});
 
+  const sharedX={type:'time',min:startTs,max:endTs,time:{unit:'month',displayFormats:{month:'yyyy.MM'}},grid:{color:GRID},border:{color:'rgba(255,255,255,.15)'}};
+
   canvasMain._chartInstance = new Chart(canvasMain.getContext('2d'),{
     type:'line', data:{datasets},
     options:{
-      responsive:true, aspectRatio:isMobile?1.6:2.2,
-      layout:{padding:{top:48,right:isMobile?4:70,bottom:4,left:isMobile?5:70}},
+      responsive:true, aspectRatio:isMobile?1.4:2.0,
+      layout:{padding:{top:48, right:isMobile?4:70, bottom:4+BAR_AREA_H, left:isMobile?5:70}},
       plugins:{
         legend:{display:false},
-        tooltip:{mode:'index',intersect:false,backgroundColor:'rgba(10,18,32,.95)',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',padding:9,
+        tooltip:{
+          mode:'index',intersect:false,
+          backgroundColor:'rgba(10,18,32,.95)',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',padding:9,
           filter:item=>item.dataset.label!=='목표'&&item.parsed.y!=null,
-          callbacks:{title:items=>{if(!items.length)return'';const maxX=Math.max(...items.map(i=>i.parsed.x));return fmt(new Date(maxX));},label:item=>` ${item.dataset.label}: ${item.parsed.y?.toFixed(1)} kg`}},
+          callbacks:{
+            title:items=>{if(!items.length)return'';const maxX=Math.max(...items.map(i=>i.parsed.x));return fmt(new Date(maxX));},
+            label:item=>` ${item.dataset.label}: ${item.parsed.y?.toFixed(1)} kg`
+          }
+        },
         zoom:{
-          zoom:{wheel:{enabled:true,speed:0.15},pinch:{enabled:true},mode:'x',
-            onZoom:({chart})=>syncBar(chart),onZoomComplete:({chart})=>syncBar(chart)},
-          pan:{enabled:true,mode:'x',onPan:({chart})=>syncBar(chart),onPanComplete:({chart})=>syncBar(chart)},
+          zoom:{wheel:{enabled:true,speed:0.15},pinch:{enabled:true},mode:'x'},
+          pan:{enabled:true,mode:'x'},
           limits:{x:{min:startTs,max:endTs,minRange:7*86400000}}
         }
       },
@@ -192,35 +325,9 @@ export function renderChart(records, userProfile, canvasMain, canvasBar, options
       },
       interaction:{mode:'index',intersect:false}
     },
-    plugins:[headerPlugin,annotPlugin]
+    plugins:[headerPlugin,annotPlugin,weeklyBarPlugin,weeklyBarTooltipPlugin]
   });
   canvasMain._startTs=startTs; canvasMain._endTs=endTs;
-
-  if(showWeeklyBar){
-    // 메인 차트의 실제 chartArea를 읽어서 바 차트 padding에 정확히 적용
-    const mainChart = canvasMain._chartInstance;
-    const mainArea  = mainChart.chartArea;
-    // chartArea는 CSS pixel 기준 → 그대로 padding에 적용
-    const barPadLeft  = Math.round(mainArea.left);
-    const barPadRight = Math.round(canvasMain.offsetWidth - mainArea.right);
-
-    const bg=weeklyData.map(d=>d.y>=0?'rgba(102,187,106,.75)':'rgba(239,83,80,.75)');
-    const bdr=weeklyData.map(d=>d.y>=0?GREEN:RED);
-    canvasBar._chartInstance=new Chart(canvasBar.getContext('2d'),{
-      type:'bar',data:{datasets:[{label:'주간 감량',data:weeklyData,backgroundColor:bg,borderColor:bdr,borderWidth:1,borderRadius:2,maxBarThickness:24}]},
-      options:{responsive:true,maintainAspectRatio:false,
-        layout:{padding:{left:barPadLeft, right:barPadRight, top:2, bottom:0}},
-        plugins:{legend:{display:false},
-          tooltip:{backgroundColor:'rgba(10,18,32,.95)',titleColor:'#fff',bodyColor:'rgba(255,255,255,.75)',padding:8,
-            callbacks:{title:items=>weeklyData[items[0].dataIndex]?.label??'',
-              label:item=>{const r=weeklyData[item.dataIndex]?.raw;return r<0?` 감량  ${Math.abs(r).toFixed(1)} kg`:` 증량  +${r.toFixed(1)} kg`;}}}},
-        scales:{
-          x:{...sharedX, display:false},
-          y:{display:false}
-        }
-      }
-    });
-  }
 }
 
 export function calcStats(records, userProfile) {
@@ -231,7 +338,6 @@ export function calcStats(records, userProfile) {
   const start=new Date(pts[0].date), end=new Date(pts[pts.length-1].date);
   const days=Math.round((end-start)/86400000), loss=maxW-curW;
   const bmi=height?+(curW/Math.pow(height/100,2)).toFixed(1):null;
-  // 주간 스트릭
   function getSun(d){const dt=new Date(d);dt.setDate(dt.getDate()-dt.getDay());dt.setHours(0,0,0,0);return dt.getTime();}
   const byW=new Map(); pts.forEach(p=>{const wk=getSun(new Date(p.date));if(!byW.has(wk))byW.set(wk,[]);byW.get(wk).push(p.weight);});
   const avgs=new Map(); byW.forEach((w,k)=>{if(w.length>=4)avgs.set(k,w.reduce((s,v)=>s+v,0)/w.length);});
@@ -240,7 +346,6 @@ export function calcStats(records, userProfile) {
   let cur=0,max2=0,tmp=0;
   changes.forEach(c=>{if(c<0){tmp++;max2=Math.max(max2,tmp);}else tmp=0;});
   for(let i=changes.length-1;i>=0;i--){if(changes[i]<0)cur++;else break;}
-  // 예상일
   const r6=pts.filter(p=>new Date(p.date).getTime()>=end.getTime()-42*86400000);
   let eta='계산불가';
   if(r6.length>=2&&curW>goal){
