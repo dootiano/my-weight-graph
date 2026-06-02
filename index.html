@@ -127,6 +127,15 @@ async function render() {
   const params  = new URLSearchParams(location.search);
   const authReq = params.get('auth_required');
 
+  // 마지막 사용자 자동 이동 (auth_required 파라미터 없을 때만)
+  if (!authReq) {
+    const lastUid = localStorage.getItem('uid');
+    if (lastUid) {
+      location.href = `dashboard.html?user=${encodeURIComponent(lastUid)}`;
+      return;
+    }
+  }
+
   try {
     const timeout = new Promise((_,rej) => setTimeout(()=>rej(new Error('연결 시간 초과. 네트워크를 확인해주세요.')), 10000));
     const users = await Promise.race([getUsers(), timeout]);
