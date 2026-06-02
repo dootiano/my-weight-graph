@@ -5,6 +5,7 @@ import { getFirestore, collection, doc, setDoc,
 import { getAuth, signInWithEmailAndPassword,
          signOut, onAuthStateChanged }                 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { firebaseConfig, DEFAULT_GOAL }               from "./firebase-config.js";
+import { sha256 }                                     from "./auth.js";
 
 const app  = initializeApp(firebaseConfig);
 const db   = getFirestore(app);
@@ -39,13 +40,21 @@ export async function getUser(userId) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 export async function createUser({ id, name, emoji='⚖️', goal=DEFAULT_GOAL,
-                                   height=null, birthYear=null }) {
+                                   height=null, birthYear=null, password=null }) {
+  const passwordHash = password ? await sha256(password) : null;
   await setDoc(doc(db, 'users', id), {
     name, emoji, goal,
     height:    height    ? Number(height)    : null,
     birthYear: birthYear ? Number(birthYear) : null,
+    passwordHash,
     createdAt: serverTimestamp()
   });
+  return passwordHash;
+}
+export async function setUserPassword(userId, newPassword) {
+  const hash = newPassword ? await sha256(newPassword) : null;
+  await setDoc(doc(db, 'users', userId), { passwordHash: hash }, { merge: true });
+  return hash;
 }
 export async function updateUser(userId, data) {
   await setDoc(doc(db, 'users', userId), data, { merge: true });

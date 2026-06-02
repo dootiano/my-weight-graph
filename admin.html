@@ -67,7 +67,7 @@ import { onAuthChange, adminSignOut, ADMIN_UID,
          getUsers, getUser, updateUser, deleteUser,
          getWeights, setWeight, deleteWeight,
          getSettings, updateSettings,
-         parseWeight, DEFAULT_SETTINGS } from './js/db.js';
+         setUserPassword, parseWeight, DEFAULT_SETTINGS } from './js/db.js';
 
 let allUsers=[], selectedUid=null, settings={};
 
@@ -187,6 +187,7 @@ function renderDetail(user, records) {
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm" onclick="window.open('dashboard.html?user=${user.id}&admin_view=1','_blank')">📊 그래프 보기</button>
           <button class="btn btn-ghost btn-sm" onclick="openEditUser('${user.id}')">✏️ 수정</button>
+          <button class="btn btn-ghost btn-sm" onclick="openPwEdit('${user.id}','${user.name}')">🔑 비번</button>
         </div>
       </div>
       <div class="section-title">${records.length}개 기록</div>
@@ -250,6 +251,30 @@ window.saveEdit=async uid=>{
   await updateUser(uid,{goal,height,birthYear});
   allUsers=await getUsers(); rmModal();
   selectUser(uid); renderUserList(); showToast('저장됨','ok');
+};
+
+// ── 비밀번호 관리 ─────────────────────────────────────────────────────
+window.openPwEdit=(uid,name)=>{
+  addModal(`
+    <h3>🔑 ${name} 비밀번호</h3>
+    <div class="input-group"><label class="input-label">새 비밀번호 (4자리 숫자)</label>
+      <input class="input-field" id="newPw" type="password" inputmode="numeric" maxlength="4" placeholder="0000"></div>
+    <div class="input-group"><label class="input-label">확인</label>
+      <input class="input-field" id="newPwC" type="password" inputmode="numeric" maxlength="4" placeholder="0000"></div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">비워두면 비밀번호 제거</p>
+    <div class="flex-row gap-8">
+      <button class="btn btn-ghost btn-full" onclick="rmModal()">취소</button>
+      <button class="btn btn-primary btn-full" onclick="savePw('${uid}')">저장</button>
+    </div>`);
+};
+window.savePw=async uid=>{
+  const pw=document.getElementById('newPw').value;
+  const pwC=document.getElementById('newPwC').value;
+  if(pw && pw!==pwC){showToast('비밀번호 불일치','err');return;}
+  if(pw && !/^\d{4}$/.test(pw)){showToast('숫자 4자리로 입력해주세요','err');return;}
+  await setUserPassword(uid, pw||null);
+  allUsers=await getUsers(); rmModal();
+  selectUser(uid); showToast('비밀번호 변경됨','ok');
 };
 
 // ── 삭제 ─────────────────────────────────────────────────────────────

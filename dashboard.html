@@ -71,13 +71,14 @@
 
 <script type="module">
 import { getUser, getWeights, getSettings, updateSettings, setWeight, toDateStr, parseWeight, updateUser } from './js/db.js';
-import { renderChart, calcStats }                           from './js/chart-render.js';
+import { isAuthed, clearAuth } from './js/auth.js';
+import { renderChart, calcStats } from './js/chart-render.js';
 
 const uid = new URLSearchParams(location.search).get('user') || localStorage.getItem('uid');
 const isAdminView = new URLSearchParams(location.search).get('admin_view') === '1';
 if (!uid) location.href='index.html';
 
-window.doLogout = () => { localStorage.removeItem('uid'); location.href='index.html'; };
+window.doLogout = () => { clearAuth(); localStorage.removeItem('uid'); location.href='index.html'; };
 
 function buildNav(uid) {
   const links=[
@@ -105,6 +106,12 @@ async function render() {
     document.getElementById('chipEdit').textContent = '✏️';
   }
   if (!user) { location.href='index.html'; return; }
+
+  // 비밀번호 인증 체크 (관리자뷰 제외)
+  if (!isAdminView && user.passwordHash && !isAuthed(uid, user.passwordHash)) {
+    location.href = `index.html?auth_required=${encodeURIComponent(uid)}`;
+    return;
+  }
 
   document.getElementById('chipName').textContent  = user.name;
   document.getElementById('chipEmoji').textContent = user.emoji||'⚖️';
