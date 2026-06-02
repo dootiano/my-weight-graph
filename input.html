@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0d1117">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="favicon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <title>체중 입력</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .rec-table{width:100%;border-collapse:collapse;font-size:13px;}
+    .rec-table th{text-align:left;padding:6px 8px;color:var(--muted);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;}
+    .rec-table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04);}
+    .rec-table tr:last-child td{border-bottom:none;}
+    .w-edit{
+      background:transparent;border:none;border-bottom:1px solid transparent;
+      color:var(--text);font-size:13px;width:64px;text-align:right;
+      padding:2px 4px;transition:border-color .2s;
+    }
+    .w-edit:focus{outline:none;border-bottom-color:var(--teal);background:rgba(0,229,170,.05);}
+    .del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 6px;}
+    .del-btn:hover{color:var(--red);}
+    .saved-flash{color:var(--teal);font-size:11px;animation:fadeout 1.5s forwards;}
+    @keyframes fadeout{0%{opacity:1;}80%{opacity:1;}100%{opacity:0;}}
+  </style>
+</head>
+<body>
+
+<header class="top-bar">
+  <span class="title">✏️ 체중 입력</span>
+  <nav class="side-nav" id="sideNav"></nav>
+  <div class="user-chip" onclick="doLogout()">
+    <span id="chipEmoji">⚖️</span><span id="chipName">-</span>
+  </div>
+</header>
+
+<div class="page">
+  <div id="content">
+    <div class="loading"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<nav class="bottom-nav" id="bottomNav"></nav>
+
+<!-- 날짜 추가 모달 -->
+<div class="modal-bg" id="addDateModal">
+  <div class="modal">
+    <h3>📅 날짜 직접 추가</h3>
+    <div class="input-group">
+      <label class="input-label">날짜</label>
+      <input class="input-field" id="extraDate" type="date">
+    </div>
+    <div class="input-group">
+      <label class="input-label">체중 (kg)</label>
+      <input class="input-field" id="extraWeight" type="number" step="0.1" placeholder="90.0">
+    </div>
+    <div class="flex-row gap-8 mt-12">
+      <button class="btn btn-ghost btn-full" onclick="closeDateModal()">취소</button>
+      <button class="btn btn-primary btn-full" onclick="submitExtra()">저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { getUser, getWeights, setWeight, deleteWeight, parseWeight, toDateStr } from './js/db.js';
+const uid = new URLSearchParams(location.search).get('user') || localStorage.getItem('uid');
+if (!uid) location.href='index.html';
+window.doLogout = () => { localStorage.removeItem('uid'); location.href='index.html'; };
+
+const DAY_KO=['일','월','화','수','목','금','토'];
+let existingMap={}, allRecords=[], user=null;
+
+function buildNav() {
+  const links=[
+    {href:`dashboard.html?user=${uid}`,icon:'📊',label:'그래프',id:'dashboard'},
+    {href:`input.html?user=${uid}`,    icon:'✏️', label:'입력',  id:'input'},
+    {href:`import.html?user=${uid}`,   icon:'📥', label:'가져오기',id:'import'},
+  ];
+  [document.getElementById('bottomNav'),document.getElementById('sideNav')].forEach((nav,ni)=>{
+    links.forEach(l=>{
+      const a=document.createElement('a');
+      a.href=l.href; a.className=l.id==='input'?'active':'';
+      a.innerHTML=ni===0?`<span class="icon">${l.icon}</span>${l.label}`:`${l.icon} ${l.label}`;
+      nav.appendChild(a);
+    });
+  });
+}
+
+function fmtDate(d){
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function recentRow(dateStr, label, isToday) {
+  const val = existingMap[dateStr];
+  const d   = new Date(dateStr);
+  return `
+    <div class="weight-row ${isToday?'is-today':''} ${val!=null?'has-value':''}" data-date="${dateStr}">
+      <div class="date-lbl">
+        <div>${label}</div>
+        <div class="day-sub">${fmtDate(d)} (${DAY_KO[d.getDay()]})</div>
+      </div>
+      <input class="w-input" type="number" step="0.1" placeholder="--.-"
+        value="${val!=null?val.toFixed(1):''}"
+        data-date="${dateStr}"
+        onchange="saveRecent(this)"
+        onblur="fmtInput(this)">
+      <div class="w-unit">kg</div>
+    </div>`;
+}
+
+async function render() {
+  buildNav();
+  const res = await Promise.all([getUser(uid), getWeights(uid)]);
+  user = res[0]; allRecords = res[1];
+  existingMap = Object.fromEntries(allRecords.map(r=>[r.date, r.weight]));
+
+  document.getElementById('chipName').textContent  = user?.name??'-';
+  document.getElementById('chipEmoji').textContent = user?.emoji??'⚖️';
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const labels=['5일 전','4일 전','3일 전','2일 전','어제','오늘'];
+  let rows='';
+  for(let i=5;i>=0;i--){
+    const d=new Date(today); d.setDate(d.getDate()-i);
+    rows+=recentRow(toDateStr(d), labels[5-i], i===0);
+  }
+
+  // 전체 기록 (수정 가능한 테이블)
+  const sorted=[...allRecords].sort((a,b)=>b.date.localeCompare(a.date));
+  const histRows = sorted.map(r=>`
+    <tr id="hrow-${r.date}">
+      <td style="color:var(--muted);font-size:12px">${r.date}</td>
+      <td style="text-align:right">
+        <input class="w-edit" type="number" step="0.1"
+          value="${r.weight!=null?r.weight.toFixed(1):''}"
+          onblur="saveHist('${r.date}',this)"
+          onkeydown="if(event.key==='Enter')this.blur()">
+        <span style="font-size:11px;color:var(--muted)">kg</span>
+      </td>
+      <td id="hs-${r.date}" style="width:24px"></td>
+      <td><button class="del-btn" onclick="delHist('${r.date}')" title="삭제">🗑</button></td>
+    </tr>`).join('');
+
+  document.getElementById('content').innerHTML=`
+    <div class="card">
+      <div class="section-title">최근 6일</div>
+      ${rows}
+    </div>
+
+    <button class="btn btn-ghost btn-full mt-12" onclick="openDateModal()">
+      ➕ 날짜 직접 추가하기
+    </button>
+
+    <div class="card mt-12">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer"
+           onclick="toggleHistory()">
+        <div class="section-title" style="margin:0">📋 전체 기록 수정 (${allRecords.length}개)</div>
+        <span id="histArrow" style="color:var(--muted);font-size:13px">▼ 펼치기</span>
+      </div>
+      <div id="histSection" style="display:none;margin-top:12px;max-height:360px;overflow-y:auto">
+        <table class="rec-table">
+          <thead><tr><th>날짜</th><th style="text-align:right">체중</th><th></th><th></th></tr></thead>
+          <tbody>${histRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <a href="dashboard.html?user=${uid}" class="btn btn-primary btn-full mt-12">📊 그래프 보기</a>`;
+}
+
+window.toggleHistory = () => {
+  const sec=document.getElementById('histSection');
+  const arrow=document.getElementById('histArrow');
+  if(sec.style.display==='none'){sec.style.display='';arrow.textContent='▲ 접기';}
+  else{sec.style.display='none';arrow.textContent='▼ 펼치기';}
+};
+
+window.saveRecent = async (input) => {
+  const dateStr=input.dataset.date, raw=input.value.trim();
+  if(raw===''||raw==='-'){await setWeight(uid,dateStr,null);input.closest('.weight-row').classList.remove('has-value');return;}
+  const w=parseWeight(raw);
+  if(w===null){showToast('숫자를 입력해주세요','err');return;}
+  input.value=w.toFixed(1);
+  await setWeight(uid,dateStr,w);
+  input.closest('.weight-row').classList.add('has-value');
+  existingMap[dateStr]=w;
+  showToast('저장 ✓','ok');
+};
+window.fmtInput = (input)=>{const w=parseWeight(input.value);if(w!==null)input.value=w.toFixed(1);};
+
+window.saveHist = async (date, input) => {
+  const w=parseWeight(input.value);
+  if(w===null)return;
+  input.value=w.toFixed(1);
+  await setWeight(uid,date,w);
+  const s=document.getElementById(`hs-${date}`);
+  if(s){s.innerHTML='<span class="saved-flash">✓</span>';}
+  // 최근 6일 인풋도 업데이트
+  const ri=document.querySelector(`input[data-date="${date}"]`);
+  if(ri){ri.value=w.toFixed(1);ri.closest('.weight-row')?.classList.add('has-value');}
+  existingMap[date]=w;
+};
+window.delHist = async (date) => {
+  await deleteWeight(uid,date);
+  document.getElementById(`hrow-${date}`)?.remove();
+  delete existingMap[date];
+  const ri=document.querySelector(`input[data-date="${date}"]`);
+  if(ri){ri.value='';ri.closest('.weight-row')?.classList.remove('has-value');}
+  showToast('삭제됨','ok');
+};
+
+window.openDateModal = () => {
+  document.getElementById('extraDate').value=toDateStr(new Date());
+  document.getElementById('extraWeight').value='';
+  document.getElementById('addDateModal').classList.add('open');
+};
+window.closeDateModal = ()=>document.getElementById('addDateModal').classList.remove('open');
+window.submitExtra = async ()=>{
+  const dateStr=document.getElementById('extraDate').value;
+  const w=parseWeight(document.getElementById('extraWeight').value);
+  if(!dateStr){showToast('날짜를 선택해주세요','err');return;}
+  if(w===null){showToast('체중을 입력해주세요','err');return;}
+  await setWeight(uid,dateStr,w);
+  existingMap[dateStr]=w;
+  closeDateModal();
+  showToast(`${dateStr} 저장 ✓`,'ok');
+  render();
+};
+
+function showToast(msg,type='ok'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=`toast show ${type}`;
+  setTimeout(()=>t.className='toast',2000);
+}
+
+render().catch(console.error);
+</script>
+<script src="register-sw.js"></script>
+</body>
+</html>
